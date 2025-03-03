@@ -1,0 +1,54 @@
+name: Sync Project to Cloudflare R2 with rclone
+
+on:
+  push:
+    branches:
+      - main  # Sync files when pushing to the main branch
+
+  workflow_dispatch:  # Allows manual trigger from GitHub Actions UI
+
+jobs:
+  sync-r2:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install rclone
+        run: |
+          curl https://rclone.org/install.sh | sudo bash
+
+      - name: Create rclone Config Directory
+        run: mkdir -p ~/.config/rclone
+
+      - name: Configure rclone for Cloudflare R2
+        run: |
+          cat <<EOF > ~/.config/rclone/rclone.conf
+          [r2]
+          type = s3
+          provider = Cloudflare
+          access_key_id = ${{ secrets.R2_ACCESS_KEY_ID }}
+          secret_access_key = ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          region = auto
+          endpoint = ${{ secrets.R2_ENDPOINT }}
+          acl = private
+          EOF
+
+      - name: Verify rclone Configuration
+        run: rclone config show
+
+      - name: Sync Project Files to Cloudflare R2
+        run: |
+          echo "🚀 Syncing project files to Cloudflare R2..."
+          rclone sync . r2:${{ secrets.R2_BUCKET_NAME }} \
+            --exclude ".git/**" \
+            --exclude ".github/**" \
+            --exclude ".DS_Store" \
+            --delete-during \
+            --progress
+
+      - name: Verify Synced Files
+        run: |
+          echo "✅ Listing synced files in Cloudflare R2..."
+          rclone ls r2:${{ secrets.R2_BUCKET_NAME }}
